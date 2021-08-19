@@ -13,7 +13,8 @@ class RSA{
     static PADDING_K0 = 32;
     static PADDING_K1 = 8;
     static PADDING_N = 64;
-    static SHA256 = SHA256;
+    static HASH_FUNCTION_G = SHA256.instance.encode.bind(SHA256.instance);
+    static HASH_FUNCTION_H = RSA.HASH_FUNCTION_G;
 
     _privateKey;
     _publicKey;
@@ -30,6 +31,7 @@ class RSA{
     set privateKey(prikey){
         this._privateKey = this._deserializeKeyPair(prikey);
     }
+    
     generateKeyPair(bits=2048n){ // 2048 bits is to slow
         var [p, q] = this._getTwoPrimes(bits);
         var n = p*q;
@@ -192,8 +194,7 @@ class RSA{
 
     _padding(m){ //required length: n-k0-k1 = 24, output length: n = 64
         const n = RSA.PADDING_N, k0 = RSA.PADDING_K0, k1 = RSA.PADDING_K1;
-        const sha256 = SHA256.instance;
-        const [G, H] = [sha256.encode.bind(sha256), sha256.encode.bind(sha256)];
+        const [G, H] = [RSA.HASH_FUNCTION_G, RSA.HASH_FUNCTION_H];
 
         m = this._paddingZeros(m, k1); // padding k1 zeros
         
@@ -205,8 +206,7 @@ class RSA{
     }
     _unpadding(R){//output length: 24
         const n = RSA.PADDING_N, k0 = RSA.PADDING_K0, k1 = RSA.PADDING_K1;
-        const sha256 = SHA256.instance;
-        const [G, H] = [sha256.encode.bind(sha256), sha256.encode.bind(sha256)];
+        const [G, H] = [RSA.HASH_FUNCTION_G, RSA.HASH_FUNCTION_H];
         
         var [X, Y] = [R.slice(0, n - k0), R.slice(n - k0, n)];
         var r = this._xorArray(Y, H(X));
@@ -258,11 +258,14 @@ class RSA{
         return bint;
     }
     _bint2arr(bint){
-        var buffer = [];
-        do{
-            buffer.push(Number(bint%256n))
+        var ln2 = bint.toString(2).length;
+        var len = ln2 / 8;
+        if(ln2 % 8 !== 0) len++;
+        var buffer = new Uint8Array(len);
+        for(var i=0; i<len; i++) {
+            buffer[i] = Number(bint%256n);
             bint >>= 8n;
-        }while(bint>0);
+        }
         return buffer;
     }
 

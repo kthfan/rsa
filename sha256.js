@@ -105,13 +105,6 @@ class SHA256{
         for (var i = 0; i < 8; i++) {
             for (var j = 3; j + 1; j--) {
                 var b = (hash[i]>>(j*8))&255;
-                // if(b < 16) {
-                //     result.push(0);
-                //     result.push(b);
-                // }else{
-                //     result.push(b>>4);
-                //     result.push((b&0xf0)>>4);
-                // }
                 result.push(b);
             }
         }
