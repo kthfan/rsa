@@ -30,7 +30,7 @@ class RSA{
     set privateKey(prikey){
         this._privateKey = this._deserializeKeyPair(prikey);
     }
-    generateKeyPair(bits=2048n){
+    generateKeyPair(bits=2048n){ // 2048 bits is to slow
         var [p, q] = this._getTwoPrimes(bits);
         var n = p*q;
         var lambda_n = RSA.lcm(p - 1n, q - 1n);
@@ -42,13 +42,12 @@ class RSA{
             d = d % lambda_n;
             d += lambda_n;
         }
-        if(!this._isKeyPairSafe(p, q, n, e, d, bits)) console.warn('the keypair are not safe.');
+        if(!this._isKeyPairSafe(p, q, n, e, d, bits)) throw 'the keypair are not safe.';
         this._privateKey = [d, n];
         this._publicKey = [e, n];
-        return {
-            publicKey: this._publicKey,
-            privateKey:　this._privateKey
-        };
+        if(!this._checkCorrect()) throw 'origin data  decrypted.';
+        
+        return this;
     }
     encrypt(M){
         var [e, n] = this._publicKey;
@@ -269,6 +268,15 @@ class RSA{
 
     _isKeyPairSafe(p, q, n, e, d, bits){
         if(p < 2n*q && p > q && d < 2n**(bits/4n) / 3n) return false;
+        return true;
+    }
+    _checkCorrect(){
+        var data = this._bint2arr(RSA.randint(1n<<511n, 1n<<512n));
+        var encrypted = this.encrypt(data);
+        var decrypted = this.decrypt(encrypted);
+        for(var i=0; i<data.length; i++){
+            if(data[i] !== decrypted[i]) return false;
+        }
         return true;
     }
 
