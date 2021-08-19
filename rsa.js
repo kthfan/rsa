@@ -45,7 +45,7 @@ class RSA{
         if(!this._isKeyPairSafe(p, q, n, e, d, bits)) throw 'the keypair are not safe.';
         this._privateKey = [d, n];
         this._publicKey = [e, n];
-        if(!this._checkCorrect()) throw 'origin data  decrypted.';
+        if(!this._checkCorrect()) throw 'origin data != decrypted.';
         
         return this;
     }
