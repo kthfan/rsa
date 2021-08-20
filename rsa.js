@@ -1,20 +1,15 @@
 
 
 class RSA{
-    static FITST_PRIMES_LIST  = [
-        /*2,*/ 3, 5, 7, 11, 13, 17, 19, 23, 29,
-        31, 37, 41, 43, 47, 53, 59, 61, 67, 
-        71, 73, 79, 83, 89, 97, 101, 103, 
-        107, 109, 113, 127, 131, 137, 139, 
-        149, 151, 157, 163, 167, 173, 179,      
-        181, 191, 193, 197, 199, 211, 223,
-    ].map(n=>BigInt(n));
+    static FITST_PRIMES_LIST  = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313, 317, 331, 337, 347, 349, 353, 359, 367, 373, 379, 383, 389, 397, 401, 409, 419, 421, 431, 433, 439, 443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503, 509, 521, 523, 541, 547, 557, 563, 569, 571, 577, 587, 593, 599, 601, 607, 613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691, 701, 709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809, 811, 821, 823, 827, 829, 839, 853, 857, 859, 863, 877, 881, 883, 887, 907, 911, 919, 929, 937, 941, 947, 953, 967, 971, 977, 983, 991, 997]
+        .map(n=>BigInt(n));
 
     static PADDING_K0 = 32;
     static PADDING_K1 = 8;
     static PADDING_N = 64;
-    static HASH_FUNCTION_G = SHA256.instance.encode.bind(SHA256.instance);
-    static HASH_FUNCTION_H = RSA.HASH_FUNCTION_G;
+    static HASH_FUNCTION = SHA256.instance.encode.bind(SHA256.instance);
+    static HASH_FUNCTION_G = RSA.HASH_FUNCTION;
+    static HASH_FUNCTION_H = RSA.HASH_FUNCTION;
 
     _privateKey;
     _publicKey;
@@ -33,26 +28,66 @@ class RSA{
     }
     
     generateKeyPair(bits=2048n){ // 2048 bits is to slow
+        bits = BigInt(bits);
         var [p, q] = this._getTwoPrimes(bits);
         var n = p*q;
         var lambda_n = RSA.lcm(p - 1n, q - 1n);
         var e = this._getE(lambda_n, p, q);
         var [k, d, r] = this._extendedEuclidean(lambda_n, e);
 
-        if(r !== 1n) throw 'extendedEuclidean fall.';
+        if(r !== 1n) return generateKeyPair(bits); //throw 'extendedEuclidean fall.';
         if(d < 0n) {
             d = d % lambda_n;
             d += lambda_n;
         }
-        if(!this._isKeyPairSafe(p, q, n, e, d, bits)) throw 'the keypair are not safe.';
+        if(!this._isKeyPairSafe(p, q, n, e, d, bits)) return generateKeyPair(bits); //throw 'the keypair are not safe.';
         this._privateKey = [d, n];
         this._publicKey = [e, n];
-        if(!this._checkCorrect()) throw 'origin data != decrypted.';
         
         return this;
     }
+
     encrypt(M){
         var [e, n] = this._publicKey;
+        return this._encrypt(M, e, n);
+    }
+    decrypt(C){
+        var [d, n] = this._privateKey;
+        return this._decrypt(C, d, n);
+    }
+
+    sign(M){
+        var [d, n] = this._privateKey;
+        M = RSA.HASH_FUNCTION(M);
+        return this._encrypt(M, d, n);
+    }
+    verify(S, M){
+        var [e, n] = this._publicKey;
+        var C = this._decrypt(S, e, n);
+        M = RSA.HASH_FUNCTION(M);
+        for(var i=0; i<M.length; i++){
+            if(M[i] !== C[i]) return false;
+        }
+        return true;
+    }
+
+    checkKeyPairCorrectness(iter=3){
+        var data, encrypted, decrypted, signData;
+        for(var i=0; i<iter; i++){
+            data = this._bint2arr(RSA.randint(1n<<511n, 1n<<512n));
+            signData = this._bint2arr(RSA.randint(1n<<511n, 1n<<512n));
+            encrypted = this.encrypt(data);
+            decrypted = this.decrypt(encrypted);
+            for(var i=0; i<data.length; i++){
+                if(data[i] !== decrypted[i]) return false;
+            }
+            if(!(this.verify(this.sign(data), data) && !this.verify(this.sign(signData), data))) return false;
+        }
+        return true;
+    }
+
+
+    _encrypt(M, e, n){
         var C, M;
         M = this._paddingSplit(M);
         M = this._splitByN(M, n);
@@ -83,8 +118,7 @@ class RSA{
         C = this._concatArray([max], C); //add chunk size
         return C;
     }
-    decrypt(C){
-        var [d, n] = this._privateKey;
+    _decrypt(C, d, n){
         var M, C;
         
         var chunkSize = BigInt(C[0]);
@@ -114,6 +148,7 @@ class RSA{
         return M;
     }
 
+    
     _splitByN(arr, n, chunkSize=null){ // 0 <= m < n
         var x = BigInt(n.toString(2).length - 1);
         if(n % (1n << x) === 0n) x++;
@@ -186,7 +221,6 @@ class RSA{
         for(var i=0,offset=0; i<iter; i++, offset += chunkSize){
             var R = message.slice(offset, offset+chunkSize);
             result[i] = this._unpadding(R);
-            
         }
         return this._flatArray(result);
     }
@@ -273,15 +307,6 @@ class RSA{
         if(p < 2n*q && p > q && d < 2n**(bits/4n) / 3n) return false;
         return true;
     }
-    _checkCorrect(){
-        var data = this._bint2arr(RSA.randint(1n<<511n, 1n<<512n));
-        var encrypted = this.encrypt(data);
-        var decrypted = this.decrypt(encrypted);
-        for(var i=0; i<data.length; i++){
-            if(data[i] !== decrypted[i]) return false;
-        }
-        return true;
-    }
 
     _getTwoPrimes(bits){
         /** p - q should larger than 2n^{1/4}*/
@@ -292,49 +317,89 @@ class RSA{
         return [this._generatePrimeNumberByProbability(range[1] + dist, range[1] + dist + step), this._generatePrimeNumberByProbability(range[0], range[1])];
     }
 
+    /** modify from https://github.com/travist/jsencrypt*/
     _getLowLevelPrime(n0, n1){
-        /** Generate a prime candidate divisible by first primes*/
+        const LOW_PRIME_LIST = RSA.FITST_PRIMES_LIST
+        const LOW_PRIME_LENGTH = LOW_PRIME_LIST.length;
+        const BIG_LOW_PRIME = RSA.FITST_PRIMES_LIST[LOW_PRIME_LENGTH - 1];
+        const lplim = (1n << 26n) / BIG_LOW_PRIME + 1n;
+
         while(true){
             // Obtain a random number
-            var pc = RSA.randint(n0, n1);
-            if((pc & 1n) === 0n) pc = pc + 1n;
-            for(var divisor of RSA.FITST_PRIMES_LIST){
-                if (pc % divisor === 0n && divisor*divisor <= pc)
-                    break;
-                else return pc;
+            var x = RSA.randint(n0, n1);
+            if((x & 1n) === 0n) x = x + 1n;
+
+            if (x < (1n<<28n) && x <= BIG_LOW_PRIME) { // check if x is prime that in list "LOW_PRIME_LIST"
+                for (var i = 1; i < LOW_PRIME_LENGTH; i++) {// not including 2
+                    if (x === LOW_PRIME_LIST[i]) {
+                        return x;
+                    }
+                }
+                continue;
             }
+            
+            var i = 1;
+            var _notPrime = false;
+            while (i < LOW_PRIME_LENGTH) {
+                let m = LOW_PRIME_LIST[i];
+                let j = i + 1;
+                while (j < LOW_PRIME_LENGTH && m < lplim) {
+                    m *= LOW_PRIME_LIST[j++];
+                }
+                m = x % m;
+                while (i < j) {
+                    if (m % LOW_PRIME_LIST[i++] === 0n) {
+                        _notPrime = true;
+                        break;
+                    }
+                }
+                if(_notPrime) break;
+            }
+            if(_notPrime) continue;
+            return x;
         }
     }
+    /** modify from https://github.com/travist/jsencrypt*/
+    _MillerRabinPrimalityTest(n, t = 10n) {
+        const LOW_PRIME_LIST = RSA.FITST_PRIMES_LIST
+        const LOW_PRIME_LENGTH = LOW_PRIME_LIST.length;
+        const n1 = n - 1n;
     
-    _MillerTest(n){
-        var d = n - 1n;
-        var r = 0n;
+        var k = 0n;
         while(true){
-            var r1 = (d>>1n);
-            if(d !== r1<<1n) break;
-            d = r1;
-            r++;
+            if((n1 & (1n << k)) !== 0n) break;
+            k++;
         }
-
-        var iter = 2n * RSA.log(n)**2n;
-        iter = iter > n - 2n ? n - 2n : iter;
-        for(var a=2n; a<iter; a++){
-            var x = RSA.modExp(a, d, n);
-            if(x === 1n || x === n - 1n)
-                continue;
-            var _toContinue = false;
-            for(var j = 0n; j < r-1n; j++){
-                x = x*x % n;
-                if(x === n - 1n) {
-                    _toContinue = true;
-                    break;
+    
+        if (k <= 0n) {
+            return false;
+        }
+        const r = n1 >> k;
+        t = (t + 1n) >> 1n;
+        if (t > LOW_PRIME_LENGTH) {
+            t = LOW_PRIME_LENGTH;
+        }
+        var count = Number(RSA.randint(0n, BigInt(LOW_PRIME_LENGTH)));
+        for (let i = 0n; i < t; ++i, count=(count+1)%LOW_PRIME_LENGTH) {
+            // Pick bases at random, instead of starting at 2
+            var a = LOW_PRIME_LIST[count];
+            let y = RSA.modExp(a, r, n);
+            if (y !== 1n && y !== n1) {
+                let j = 1;
+                while (j++ < k && y !== n1) {
+                    y = y*y % n;
+                    if (y === 1n) {
+                        return false;
+                    }
+                }
+                if (y !== n1) {
+                    return false;
                 }
             }
-            if(_toContinue) continue;
-            return false;
         }
         return true;
     }
+    
     _extendedEuclidean(a, b){
         var [old_s, s] = [1n, 0n];
         var [old_t, t] = [0n, 1n];
@@ -353,7 +418,7 @@ class RSA{
     _generatePrimeNumberByProbability(n0, n1, maxIter=1632){
         for(var i=0; i<maxIter; i++){
             var prime_candidate = this._getLowLevelPrime(n0, n1);
-            if (!this._MillerTest(prime_candidate))
+            if (!this._MillerRabinPrimalityTest(prime_candidate))
                 continue;
             else
                 return prime_candidate;
@@ -377,7 +442,7 @@ class RSA{
         maxVal = maxVal > c ? maxVal : c;
         for(var i=0; i<100; i++){
             var prime = this._getLowLevelPrime(65536n, maxVal);
-            if(this._MillerTest(prime) && prime < lambda_n && lambda_n % e !== 0/*since e is prime*/){
+            if(this._MillerRabinPrimalityTest(prime) && prime < lambda_n && lambda_n % e !== 0/*since e is prime*/){
                 return prime;
             }
         }
@@ -433,6 +498,3 @@ class RSA{
         return Y;
     }
 }
-
-// var rsa = new RSA();
-// var keypair = rsa.generateKeyPair(10n);
