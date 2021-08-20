@@ -341,11 +341,11 @@ class RSA{
         return bint;
     }
     _bint2arr(bint){
-        var ln2 = bint.toString(2).length;
-        var len = ln2 / 8;
-        if(ln2 % 8 !== 0) len++;
-        var buffer = new Uint8Array(len);
-        for(var i=0; i<len; i++) {
+        var ln2 = BigInt(bint.toString(2).length);
+        var len = ln2 / 8n;
+        if((ln2 & 0b111n) !== 0n) len++;
+        var buffer = new Uint8Array(Number(len));
+        for(var i=0n; i<len; i++) {
             buffer[i] = Number(bint%256n);
             bint >>= 8n;
         }
@@ -509,8 +509,11 @@ class RSA{
     
     static randint(start, end){
         var range = end - start;
-        var p = Math.ceil(Math.log2(Number(range)) / 8);
-        var randArr = crypto.getRandomValues(new Uint8Array(p));
+        var ln2 = BigInt(range.toString(2).length);
+        var p = ln2 / 8n;
+        if((ln2 & 0b111n) !== 0n) p++;
+       
+        var randArr = crypto.getRandomValues(new Uint8Array(Number(p)));
         var bint = 0n;
         var len = BigInt(p);
         
