@@ -3,11 +3,11 @@
  */
 
 
-class SHA256{
+ class SHA256{
     static _instance;
     MAX_WORD = 1 <<32;
-    HASH = [];
-    K = [];
+    HASH = new Int32Array(64);
+    K = new Uint8Array(64);
 
     static get instance(){
         if (SHA256._instance == null)
@@ -19,7 +19,7 @@ class SHA256{
 
     constructor(){
         var primeCounter = 0;
-        const isComposite = {};
+        const isComposite = new Uint16Array(313);
         const hash = this.HASH;
         const k = this.K;
         const maxWord = this.MAX_WORD;
@@ -36,64 +36,90 @@ class SHA256{
     _rightRotate(value, amount) {
 		return (value>>>amount) | (value<<(32 - amount));
 	};
-    encode(ascii){
+    encode(byteArr){
         var hash = this.HASH;
         const k = this.K;
         const maxWord = this.MAX_WORD;
 
-        var words = [];
-        var asciiLength;
-        var asciiBitLength = ascii.length*8;
-        var result = [];
+        var words;
+        var byteArrLength;
+        var byteArrBitLength = byteArr.length*8;
+        var result = new Uint8Array(32);
 
-        ascii = Array.from(ascii);
-        ascii.push(0x80); // Append Ƈ' bit (plus zero padding)
-        while (ascii.length%64 - 56) ascii.push(0); // More zero padding
-        // ascii = new Uint8Array(ascii);
+        var _remainder = (byteArr.length + 1) % 64;
+        if(_remainder > 56) _remainder = 64 - _remainder + 56;
+        else _remainder = 56 - _remainder;
+        var _tempByteArr = new Uint8Array(byteArr.length + 1 + _remainder);
+        var _offset = 0;
+        for(var i=0; i<byteArr.length; i++, _offset++){
+            _tempByteArr[_offset] = byteArr[i];
+        }
+        _tempByteArr[_offset++] = 0x80;
+        for(var i=0; i<_remainder; i++, _offset++){
+            _tempByteArr[_offset] = 0;
+        }
+        byteArr = _tempByteArr;
+        
 
-        asciiLength = ascii.length;
-        for (var i = 0; i < ascii.length; i++) {
-            var j = ascii[i];
+        byteArrLength = byteArr.length;
+        const _preWordLength = (byteArrLength>>2)+2;
+        words = new Int32Array(_preWordLength);
+        for (var i = 0; i < byteArrLength; i++) {
+            var j = byteArr[i];
             if (j>>8) throw 'only accept number in range 0-255'; // ASCII check: only accept characters in range 0-255
             words[i>>2] |= j << ((3 - i)%4)*8;
+            
         }
-        words[words.length] = ((asciiBitLength/maxWord)|0);
-        words[words.length] = (asciiBitLength)
-
-
+        words[(byteArrLength>>2)] = ((byteArrBitLength/maxWord)|0);
+        words[(byteArrLength>>2)+1] = (byteArrBitLength)
+        
+        
         // process each chunk
         for (var j = 0; j < words.length;) {
             var w = words.slice(j, j += 16); // The message is expanded into 64 words as part of the iteration
+            var _arr = new Int32Array(64);
+            for(var i=0; i<w.length; i++){
+                _arr[i] = w[i];
+            }
+            w = _arr;
+            
             var oldHash = hash;
             // This is now the undefinedworking hash", often labelled as variables a...g
             // (we have to truncate as well, otherwise extra entries at the end accumulate
             hash = hash.slice(0, 8);
-            
+
             for (var i = 0; i < 64; i++) {
                 var i2 = i + j;
                 // Expand the message into 64 words
                 // Used below if 
                 var w15 = w[i - 15], w2 = w[i - 2];
-
+                
                 // Iterate
                 var a = hash[0], e = hash[4];
-                var temp1 = hash[7]
-                    + (this._rightRotate(e, 6) ^ this._rightRotate(e, 11) ^ this._rightRotate(e, 25)) // S1
-                    + ((e&hash[5])^((~e)&hash[6])) // ch
-                    + k[i]
-                    // Expand the message schedule if needed
-                    + (w[i] = (i < 16) ? w[i] : (
-                            w[i - 16]
-                            + (this._rightRotate(w15, 7) ^ this._rightRotate(w15, 18) ^ (w15>>>3)) // s0
-                            + w[i - 7]
-                            + (this._rightRotate(w2, 17) ^ this._rightRotate(w2, 19) ^ (w2>>>10)) // s1
-                        )|0
-                    );
-                // This is only used once, so *could* be moved below, but it only saves 4 bytes and makes things unreadble
-                var temp2 = (this._rightRotate(a, 2) ^ this._rightRotate(a, 13) ^ this._rightRotate(a, 22)) // S0
-                    + ((a&hash[1])^(a&hash[2])^(hash[1]&hash[2])); // maj
                 
-                hash = [(temp1 + temp2)|0].concat(hash); // We don't bother trimming off the extra ones, they're harmless as long as we're truncating when we do the slice()
+                var _num1 = (this._rightRotate(e, 6) ^ this._rightRotate(e, 11) ^ this._rightRotate(e, 25)); // S1
+                var _num2 = ((e&hash[5])^((~e)&hash[6])); // ch
+                
+                if(i >= 16){ // Expand the message schedule if needed
+                    var _num11 = (this._rightRotate(w15, 7) ^ this._rightRotate(w15, 18) ^ (w15>>>3)) // s0
+                    var _num12 =  (this._rightRotate(w2, 17) ^ this._rightRotate(w2, 19) ^ (w2>>>10)) // s1
+                    w[i] = (w[i - 16] + _num11 + w[i - 7] + _num12) | 0;
+                }
+                var temp1 = hash[7] + _num1 + _num2 + k[i] + w[i];
+                    
+
+                // This is only used once, so *could* be moved below, but it only saves 4 bytes and makes things unreadble
+                var _num3 = (this._rightRotate(a, 2) ^ this._rightRotate(a, 13) ^ this._rightRotate(a, 22)); // S0
+                var _num4 =  ((a&hash[1])^(a&hash[2])^(hash[1]&hash[2])); // maj
+                var temp2 = _num3 + _num4;
+
+                // We don't bother trimming off the extra ones, they're harmless as long as we're truncating when we do the slice()
+                _arr = new Int32Array(hash.length + 1);
+                _arr[0] = (temp1 + temp2) | 0;
+                for(var _i=0; _i<hash.length; _i++){
+                    _arr[_i+1] = hash[_i];
+                }
+                hash = _arr;
                 hash[4] = (hash[4] + temp1)|0;
             }
             
@@ -102,13 +128,13 @@ class SHA256{
             }
         }
 
+        var offset = 0;
         for (var i = 0; i < 8; i++) {
             for (var j = 3; j + 1; j--) {
                 var b = (hash[i]>>(j*8))&255;
-                result.push(b);
+                result[offset++] = b;
             }
         }
-        return new Uint8Array(result);
+        return result;
     }
 }
-
