@@ -15,17 +15,17 @@ class RSA{
     _publicKey;
     
     get publicKey(){
-        return this._serializeKeyPair(this._publicKey);
+        return this._serializeKey(this._publicKey);
     }
     get privateKey(){
         var [d, n, p, q, dmp1, dmq1, coeff] = this._privateKey;
-        return this._serializeKeyPair([p, q, d]);
+        return this._serializeKey([p, q, d]);
     }
     set publicKey(pubkey){
-        this._publicKey = this._deserializeKeyPair(pubkey);
+        this._publicKey = this._deserializeKey(pubkey);
     }
     set privateKey(prikey){
-        var [p, q, d] = this._deserializeKeyPair(prikey);
+        var [p, q, d] = this._deserializeKey(prikey);
         var [dmp1, dmq1, coeff] = this._factorPrivate(p, q, d);
         var n = p*q;
         this._privateKey = [d, n, p, q, dmp1, dmq1, coeff];
@@ -182,7 +182,7 @@ class RSA{
         return result;
     }
 
-    _serializeKeyPair(k){// k is array of bigint
+    _serializeKey(k){// k is array of bigint
         const chunkSize = RSA.PADDING_N;
         
         var nKeys = k.length;
@@ -215,7 +215,7 @@ class RSA{
         
         return resArr;
     }
-    _deserializeKeyPair(k){
+    _deserializeKey(k){
         const chunkSize = RSA.PADDING_N;
         
         var offset = 0;
