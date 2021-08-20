@@ -18,13 +18,17 @@ class RSA{
         return this._serializeKeyPair(this._publicKey);
     }
     get privateKey(){
-        return this._serializeKeyPair(this._privateKey);
+        var [d, n, p, q, dmp1, dmq1, coeff] = this._privateKey;
+        return this._serializeKeyPair([p, q, d]);
     }
     set publicKey(pubkey){
         this._publicKey = this._deserializeKeyPair(pubkey);
     }
     set privateKey(prikey){
-        this._privateKey = this._deserializeKeyPair(prikey);
+        var [p, q, d] = this._deserializeKeyPair(prikey);
+        var [dmp1, dmq1, coeff] = this._factorPrivate(p, q, d);
+        var n = p*q;
+        this._privateKey = [d, n, p, q, dmp1, dmq1, coeff];
     }
     
     generateKeyPair(bits=2048n){ // 2048 bits is to slow
@@ -41,29 +45,28 @@ class RSA{
             d += lambda_n;
         }
         if(!this._isKeyPairSafe(p, q, n, e, d, bits)) return generateKeyPair(bits); //throw 'the keypair are not safe.';
-        this._privateKey = [d, n];
+        var [dmp1, dmq1, coeff] = this._factorPrivate(p, q, d);
         this._publicKey = [e, n];
+        this._privateKey = [d, n, p, q, dmp1, dmq1, coeff];
         
         return this;
     }
 
     encrypt(M){
         var [e, n] = this._publicKey;
-        return this._encrypt(M, e, n);
+        return this._encrypt(M, false, [e, n]);
     }
     decrypt(C){
-        var [d, n] = this._privateKey;
-        return this._decrypt(C, d, n);
+        return this._decrypt(C, true, this._privateKey);
     }
 
     sign(M){
-        var [d, n] = this._privateKey;
         M = RSA.HASH_FUNCTION(M);
-        return this._encrypt(M, d, n);
+        return this._encrypt(M, true, this._privateKey);
     }
     verify(S, M){
         var [e, n] = this._publicKey;
-        var C = this._decrypt(S, e, n);
+        var C = this._decrypt(S, false, [e, n]);
         M = RSA.HASH_FUNCTION(M);
         for(var i=0; i<M.length; i++){
             if(M[i] !== C[i]) return false;
@@ -87,8 +90,9 @@ class RSA{
     }
 
 
-    _encrypt(M, e, n){
-        var C, M;
+    _encrypt(M, privateMod = false, key){
+        var C;
+        var n = key[1];
         M = this._paddingSplit(M);
         M = this._splitByN(M, n);
 
@@ -100,7 +104,7 @@ class RSA{
             var m, c;
             m = M[i];
             m = this._arr2bint(m);
-            c = RSA.modExp(m, e, n);
+            c = privateMod ?　this._doPrivateModExp(m, key[2], key[3], key[4], key[5], key[6]) :　RSA.modExp(m, key[0], key[1]);
             c = this._bint2arr(c);
             
             max = max > c.length ? max : c.length;
@@ -118,12 +122,11 @@ class RSA{
         C = this._concatArray([max], C); //add chunk size
         return C;
     }
-    _decrypt(C, d, n){
-        var M, C;
-        
+    _decrypt(C, privateMod = false, key){
+        var M;
+        var n = key[1];
         var chunkSize = BigInt(C[0]);
         var _len, _arr;
-        
         //remove chunckSize in C
         _len = C.length , _arr = new Uint8Array(_len-1);
         for(var i=1; i<_len; i++){
@@ -138,7 +141,7 @@ class RSA{
             var m, c;
             c = C[i];
             c = this._arr2bint(c);
-            m = RSA.modExp(c, d, n);
+            m = privateMod ?　this._doPrivateModExp(c, key[2], key[3], key[4], key[5], key[6]) :　RSA.modExp(c, key[0], key[1]);
             m = this._bint2arr(m);
             M[i] = m;
         }
@@ -146,6 +149,22 @@ class RSA{
         M = this._flatArray(M);
         M = this._unpaddingSplit(M);
         return M;
+    }
+
+    _factorPrivate(p, q, d){
+        var [k, coeff, r] = this._extendedEuclidean(p, q);
+        var [dmp1, dmq1] = [d % (p-1n), d % (q-1n)];
+        return [dmp1, dmq1, coeff];
+    }
+    _doPrivateModExp(x, p, q, dmp1, dmq1, coeff) {
+        // TODO: re-calculate any missing CRT params
+        let xp = RSA.modExp(x % p, dmp1, p);
+        const xq = RSA.modExp(x % q, dmq1, q);
+
+        while (xp < xq) {
+            xp += p;
+        }
+        return (((xp - xq) * coeff) % p) * q + xq;
     }
 
     
@@ -163,39 +182,69 @@ class RSA{
         return result;
     }
 
-    _serializeKeyPair(k){
+    _serializeKeyPair(k){// k is array of bigint
         const chunkSize = RSA.PADDING_N;
         
-        var [e, n] = k;
-        [e, n] = [this._bint2arr(e), this._bint2arr(n)];
-        [e, n] = [this._paddingSplit(e), this._paddingSplit(n)];
-        
-        var resArr = new Uint8Array(1 + e.length + n.length); //[e.length, e.arr, n.arr]
-        var i = 0;
-        resArr[i++] = Math.floor(e.length / chunkSize);
-        for(var j = 0; j < e.length; i++, j++){
-            resArr[i] = e[j];
+        var nKeys = k.length;
+        var resLenArr = new Uint8Array(nKeys);
+        var totalLen = 0;
+        var _arr = Array(nKeys);
+        for(var i=0; i<nKeys; i++){
+            var _tmp = k[i];
+            _tmp = this._bint2arr(_tmp);
+            _tmp = this._paddingSplit(_tmp);
+            _arr[i] = _tmp;
+            totalLen += _tmp.length;
+            resLenArr[i] = Math.floor(_tmp.length / chunkSize);
         }
-        for(var j = 0; j < n.length; i++, j++){
-            resArr[i] = n[j];
+
+        totalLen = totalLen + nKeys;
+        var resArr = new Uint8Array(totalLen); //[e.length, e.arr, n.arr]
+
+        var offset = 0;
+        resArr[offset++] = nKeys;// set number of components
+        for(var j=0; j<nKeys-1; j++){// set length of key components
+            resArr[offset++] = resLenArr[j];
+        }
+        for(var j=0; j<nKeys; j++){// set values to resArr
+            var _tmp = _arr[j];
+            for(var k = 0; k < _tmp.length; k++){
+                resArr[offset++] = _tmp[k];
+            }
         }
         
         return resArr;
     }
     _deserializeKeyPair(k){
-        var pubkey = k;
         const chunkSize = RSA.PADDING_N;
-        var eSize = pubkey[0];
-        var e = pubkey.slice(1, 1 + eSize*chunkSize);
-        var n = pubkey.slice(1 + eSize*chunkSize);
-        e = this._unpaddingSplit(e);
-        n = this._unpaddingSplit(n);
-        e = this._arr2bint(e);
-        n = this._arr2bint(n);
-        return [e, n];
+        
+        var offset = 0;
+        var nKeys = k[offset++];
+        var lenArr = new Uint8Array(nKeys);
+        var totalLen;
+        var _tmp = 0;
+        for(var i=0; i< nKeys-1; i++){
+            lenArr[i] = k[offset++];
+            _tmp += lenArr[i];
+        }
+        totalLen = k.length - offset;
+        lenArr[nKeys-1] = totalLen - _tmp;
+        var resArr = Array(nKeys);
+        for(var i=0; i< nKeys; i++){
+            var _k;
+            var size = lenArr[i] * chunkSize;
+            
+            _k = k.slice(offset, offset + size);
+            _k = this._unpaddingSplit(_k);
+            _k = this._arr2bint(_k);
+            resArr[i] = _k;
+
+            offset += size;
+        }
+        return resArr;
     }
 
-    _paddingSplit(message){//split array to 24 length
+    _paddingSplit(message){//split array to 24 length, because some array may to long.
         const n = RSA.PADDING_N, k0 = RSA.PADDING_K0, k1 = RSA.PADDING_K1;
         const inc = n - k0 - k1;
 
