@@ -39,11 +39,8 @@ class RSA{
         var e = this._getE(lambda_n, p, q);
         var [k, d, r] = this._extendedEuclidean(lambda_n, e);
 
-        if(r !== 1n) return generateKeyPair(bits); //throw 'extendedEuclidean fall.';
-        if(d < 0n) {
-            d = d % lambda_n;
-            d += lambda_n;
-        }
+        // if(r !== 1n) return generateKeyPair(bits); //throw 'extendedEuclidean fall.';
+        
         if(!this._isKeyPairSafe(p, q, n, e, d, bits)) return generateKeyPair(bits); //throw 'the keypair are not safe.';
         var [dmp1, dmq1, coeff] = this._factorPrivate(p, q, d);
         this._publicKey = [e, n];
@@ -74,7 +71,7 @@ class RSA{
         return true;
     }
 
-    checkKeyPairCorrectness(iter=3){
+    checkKeyPairCorrectness(iter=1){
         var data, encrypted, decrypted, signData;
         for(var i=0; i<iter; i++){
             data = this._bint2arr(RSA.randint(1n<<511n, 1n<<512n));
@@ -93,46 +90,41 @@ class RSA{
     _encrypt(M, privateMod = false, key){
         var C;
         var n = key[1];
+        // find log256(n)
+        var ln2 = BigInt(n.toString(2).length);
+        var ln256 = ln2 / 8n;
+        if((ln2 & 0b111n) !== 0n) ln256++;
+
         M = this._paddingSplit(M);
         M = this._splitByN(M, n);
 
-        var _len, _arr;
+        var _len;
         
         _len = M.length, C = Array(_len);
-        var max = 0;
         for(var i=0; i<_len; i++){
             var m, c;
             m = M[i];
             m = this._arr2bint(m);
             c = privateMod ?　this._doPrivateModExp(m, key[2], key[3], key[4], key[5], key[6]) :　RSA.modExp(m, key[0], key[1]);
-            c = this._bint2arr(c);
+            c = this._bint2arr(c, ln256); // chunk size is ln256
             
-            max = max > c.length ? max : c.length;
             C[i] = c;
         }
-        //Uniform length
-        _len = C.length, _arr = Array(_len);
-        for(var i=0; i<_len; i++){
-            var r = max - C[i].length;
-            _arr[i] = this._paddingZeros(C[i], r);
-        }
-        C = _arr;
-        
+           
         C = this._flatArray(C);
-        C = this._concatArray([max], C); //add chunk size
+
         return C;
     }
     _decrypt(C, privateMod = false, key){
         var M;
         var n = key[1];
-        var chunkSize = BigInt(C[0]);
-        var _len, _arr;
-        //remove chunckSize in C
-        _len = C.length , _arr = new Uint8Array(_len-1);
-        for(var i=1; i<_len; i++){
-            _arr[i-1] = C[i];
-        }
-        C = _arr;
+        var chunkSize;
+        var _len;
+        // find log256(n)
+        var ln2 = BigInt(n.toString(2).length);
+        var ln256 = ln2 / 8n;
+        if((ln2 & 0b111n) !== 0n) ln256++;
+        chunkSize = ln256;
         
         C = this._splitByN(C, n, chunkSize);
         
@@ -156,6 +148,8 @@ class RSA{
         var [dmp1, dmq1] = [d % (p-1n), d % (q-1n)];
         return [dmp1, dmq1, coeff];
     }
+
+    /** modify from https://github.com/travist/jsencrypt*/
     _doPrivateModExp(x, p, q, dmp1, dmq1, coeff) {
         // TODO: re-calculate any missing CRT params
         let xp = RSA.modExp(x % p, dmp1, p);
@@ -340,10 +334,12 @@ class RSA{
         }
         return bint;
     }
-    _bint2arr(bint){
-        var ln2 = BigInt(bint.toString(2).length);
-        var len = ln2 / 8n;
-        if((ln2 & 0b111n) !== 0n) len++;
+    _bint2arr(bint, len=null){
+        if(len === null){
+            var ln2 = BigInt(bint.toString(2).length);
+            len = ln2 / 8n;
+            if((ln2 & 0b111n) !== 0n) len++;
+        }
         var buffer = new Uint8Array(Number(len));
         for(var i=0n; i<len; i++) {
             buffer[i] = Number(bint%256n);
@@ -462,9 +458,13 @@ class RSA{
                 [old_t, t] = [t, old_t-q*t];
             }
         }
+        if(old_t < 0n) {
+            old_t = old_t % a;
+            old_t += a;
+        }
         return [old_s, old_t, old_r];
     }
-    _generatePrimeNumberByProbability(n0, n1, maxIter=1632){
+    _generatePrimeNumberByProbability(n0, n1, maxIter=10000){
         for(var i=0; i<maxIter; i++){
             var prime_candidate = this._getLowLevelPrime(n0, n1);
             if (!this._MillerRabinPrimalityTest(prime_candidate))
