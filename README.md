@@ -25,3 +25,30 @@ rsa.privateKey = prikey;
 rsa.generateKeyPair(2024, true); // Check while generating.
 console.log(rsa.checkKeyPairCorrectness()); // Check.
 ```
+
+## Java Usage:
+### Generate key pair:
+```java
+RSA rsa = new RSA();
+rsa.generateKeyPair(2024); // bits length is 2024.
+```
+### Encrypt and decrypt:
+```java
+byte[] data = new byte[]{1,2,3,4,5,6,7,8,9,0,0,0};
+byte[] encrypted = rsa.encrypt(data);
+byte[] decrypted = rsa.decrypt(encrypted);
+```
+### Get and set key pair:
+```java
+//get
+var pubkey = rsa.getPublicKey();
+var prikey = rsa.getPrivateKey();
+//set
+rsa.setPublicKey(pubkey);
+rsa.setPrivateKey(prikey);
+```
+### Check if key pair is correct:
+```java
+rsa.generateKeyPair(2024, true); // Check while generating.
+System.out.println(rsa.checkKeyPairCorrectness()); // Check.
+```
