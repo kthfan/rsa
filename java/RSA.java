@@ -1,4 +1,4 @@
-package test_rsa;
+package rsa.java;
 
 import java.math.BigInteger;
 import java.security.SecureRandom;
@@ -553,7 +553,7 @@ public class RSA {
                 return prime;
             }
         }
-        //method 3:ก@force.
+        //method 3:ยก@force.
         BigInteger e = lambda_n.subtract(BigInteger.ONE);
         while (e.compareTo(BigInteger.valueOf(65536)) > 0){
             if (RSA.gcd(e, lambda_n).compareTo(BigInteger.ONE) == 0){
