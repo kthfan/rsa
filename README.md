@@ -11,6 +11,11 @@ var data = new Uint8Array([1,2,3,4,5,6,7,8,9,0,0,0]);
 var encrypted = rsa.encrypt(data);
 var decrypted = rsa.decrypt(encrypted);
 ```
+### Sign and verify:
+```javascript
+var S = rsa.sign(data);
+console.log(rsa.verify(S, data));
+```
 ### Get and set key pair:
 ```javascript
 //get
@@ -37,6 +42,11 @@ rsa.generateKeyPair(2024); // bits length is 2024.
 byte[] data = new byte[]{1,2,3,4,5,6,7,8,9,0,0,0};
 byte[] encrypted = rsa.encrypt(data);
 byte[] decrypted = rsa.decrypt(encrypted);
+```
+### Sign and verify:
+```javascript
+byte[] S = rsa.sign(data);
+System.out.println(rsa.verify(S, data));
 ```
 ### Get and set key pair:
 ```java
