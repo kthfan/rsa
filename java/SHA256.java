@@ -1,4 +1,4 @@
-package rsa.java;
+package test_rsa;
 
 /**
  * Modify from https://geraintluff.github.io/sha256/
@@ -7,7 +7,7 @@ public class SHA256 {
     private static SHA256 _instance;
     public final long MAX_WORD = 4294967296l;
     public final int[] HASH = new int[64];
-    public final byte[] K = new byte[64];
+    public final int[] K = new int[64];
 
     public static SHA256 getInstance(){
         if (SHA256._instance == null)
@@ -21,15 +21,19 @@ public class SHA256 {
         int primeCounter = 0;
         final short[] isComposite = new short[313];
         final int[] hash = this.HASH;
-        final byte[] k = this.K;
+        final int[] k = this.K;
         final double maxWord = (double) this.MAX_WORD;
+        
         for (short candidate = 2; primeCounter < 64; candidate++) {
             if (isComposite[candidate] == 0) {
                 for (short i = 0; i < 313; i += candidate) {
                     isComposite[i] = candidate;
                 }
                 hash[primeCounter] = (int) (((long) Math.floor(Math.pow(candidate, 0.5) * maxWord)) & 0xffffffff);
-                k[primeCounter++] = (byte) Math.floor(Math.pow(candidate, 1/3) * maxWord);
+                long n = ((long) Math.floor(Math.pow(candidate, 1./3.) * maxWord));
+                if((n & 0b010000000000000000000000000000000L) == 0) n = n % MAX_WORD;
+                else n = (n % MAX_WORD) - MAX_WORD;
+                k[primeCounter++] = (int) n;
             }
         }
     }
@@ -40,7 +44,7 @@ public class SHA256 {
 
     public byte[] encode(byte[] byteArr){
         int[] hash = this.HASH;
-        final byte[] k = this.K;
+        final int[] k = this.K;
         final double maxWord = (double) this.MAX_WORD;
 
         int[] words;
