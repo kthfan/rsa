@@ -51,8 +51,8 @@ System.out.println(rsa.verify(S, data));
 ### Get and set key pair:
 ```java
 //get
-var pubkey = rsa.getPublicKey();
-var prikey = rsa.getPrivateKey();
+byte[] pubkey = rsa.getPublicKey();
+byte[] prikey = rsa.getPrivateKey();
 //set
 rsa.setPublicKey(pubkey);
 rsa.setPrivateKey(prikey);
