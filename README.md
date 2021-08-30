@@ -44,7 +44,7 @@ byte[] encrypted = rsa.encrypt(data);
 byte[] decrypted = rsa.decrypt(encrypted);
 ```
 ### Sign and verify:
-```javascript
+```java
 byte[] S = rsa.sign(data);
 System.out.println(rsa.verify(S, data));
 ```
