@@ -1,4 +1,4 @@
-package test_rsa;
+package rsa.java;
 
 /**
  * Modify from https://geraintluff.github.io/sha256/
